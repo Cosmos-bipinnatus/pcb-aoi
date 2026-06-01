@@ -1,0 +1,12 @@
+numpy
+opencv-python
+matplotlib
+scikit-image
+torch
+torchvision
+ultralytics       # for YOLO
+streamlit
+pytest
+pandas
+tqdm
+pydicom           # 沿用 xray 經驗,可能不用但裝著

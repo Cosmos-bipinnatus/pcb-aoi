@@ -1,0 +1,28 @@
+# ---- Data (keep only docs) ----
+data/*
+!data/README.md
+!data/LICENSE
+!data/license
+!data/*.md
+
+# ---- Model weights ----
+models/*.pt
+models/*.pth
+models/*.onnx
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ---- Results ----
+results/intermediate/
+
+# ---- Env / IDE ----
+.venv/
+venv/
+.env
+.vscode/
+.idea/

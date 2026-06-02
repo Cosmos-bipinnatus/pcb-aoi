@@ -124,3 +124,21 @@ def template_paths(root: str | Path) -> list[Path]:
     """Return the PCB_USED defect-free template image paths."""
     pcb_dir = Path(root) / "PCB_USED"
     return sorted(p for p in pcb_dir.iterdir() if p.is_file())
+
+
+def get_template_for_test(test_filename: str, pcb_used_dir: str | Path) -> str:
+    """Map a test image filename to its PCB_USED template path.
+
+    Filenames encode the template id as the leading numeric token, e.g.
+    ``01_missing_hole_03.jpg`` -> ``PCB_USED/01.JPG``. The template extension
+    casing varies across mirrors, so we match the stem case-insensitively.
+    """
+    stem = Path(test_filename).name
+    tid = stem.split("_")[0]                      # '01'
+    pcb_dir = Path(pcb_used_dir)
+    for p in pcb_dir.iterdir():
+        if p.is_file() and p.stem == tid:
+            return str(p)
+    raise FileNotFoundError(
+        f"no PCB_USED template with id {tid!r} for test image {test_filename!r}"
+    )

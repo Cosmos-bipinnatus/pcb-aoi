@@ -10,8 +10,11 @@ import numpy as np
 import torch
 from PIL import Image
 
+from .plot_utils import setup_chinese_font
 from .dataset import PCBDefectCropDataset, get_transforms
 from .hripcb import CLASSES
+
+setup_chinese_font()
 
 
 def _save(fig, out_dir, name):

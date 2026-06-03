@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from .plot_utils import setup_chinese_font
 from .dataset import crop_with_padding, get_transforms
+
+setup_chinese_font()
 from .dl_classifier import load_model, DEFAULT_WEIGHTS
 from .hripcb import CLASSES, get_template_for_test, parse_voc
 from .traditional_cv import run_traditional_pipeline

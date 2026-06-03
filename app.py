@@ -64,6 +64,14 @@ with st.sidebar:
         "真實 AOI 系統中,Stage 1 流程稱為 **Recipe Management**,工程師會依產品"
         "料號切換對應 golden template 後再檢測。Stage 2/3 為端到端方法,免 template。")
 
+    # 停止伺服器(沿用 xray-ct-recon app.py 的 shutdown 機制)
+    st.divider()
+    if st.button("⏹ 停止伺服器", type="secondary"):
+        st.warning("伺服器即將關閉,可關閉此瀏覽器分頁。")
+        import os, signal, time
+        time.sleep(0.5)             # 讓提示訊息先 render(沿用 xray-ct-recon 寫法)
+        os.kill(os.getpid(), signal.SIGTERM)
+
 
 # --------------------------------------------------------------------------- #
 # 主畫面

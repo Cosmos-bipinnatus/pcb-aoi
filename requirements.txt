@@ -1,17 +1,43 @@
-# 注意:torch / torchvision 在本機為 RTX 5070 Ti 專用 nightly cu128 build,
-# 請勿用本檔直接覆蓋安裝(會降級 torch、打掉 CUDA)。ultralytics 請以
-#   pip install ultralytics --no-deps
-# 安裝,並另補 polars 等小依賴。
-numpy
-opencv-python
-matplotlib
-scikit-image
-torch             # 實際使用 2.12.0.dev cu128 nightly,勿覆蓋
-torchvision       # 實際使用 0.26.0.dev cu128 nightly,勿覆蓋
-ultralytics       # for YOLO;以 --no-deps 安裝
-polars            # ultralytics 8.4+ 依賴
-streamlit
-pytest
-pandas
-tqdm
-pydicom           # 沿用 xray 經驗,可能不用但裝著
+# =============================================================================
+# IMPORTANT — read before installing
+#
+# torch / torchvision are intentionally NOT listed below. This project was
+# developed and tested on a CUDA 12.8 nightly build
+#   torch 2.12.0.dev+cu128  /  torchvision 0.26.0.dev+cu128
+# for an RTX 5070 Ti (Blackwell, sm_120). Install the torch build that matches
+# YOUR CUDA first, and do NOT let any later step overwrite it.
+#
+# ultralytics MUST be installed with --no-deps, otherwise its dependency
+# resolver can pull a different torch and break your CUDA build:
+#
+#     # 1) install torch/torchvision for your CUDA (see https://pytorch.org)
+#     # 2) install ultralytics WITHOUT its deps:
+#     pip install ultralytics==8.4.60 --no-deps
+#     pip install py-cpuinfo scipy seaborn polars
+#     # 3) finally install the rest:
+#     pip install -r requirements.txt
+# =============================================================================
+
+# --- core CV / numerics ---
+numpy>=1.26
+opencv-python>=4.8
+scikit-image>=0.22
+Pillow>=10.0
+pandas>=2.0
+matplotlib>=3.7
+tqdm>=4.65
+
+# --- deep learning ---
+# NOTE: install ultralytics with --no-deps (see header). polars/scipy/seaborn/
+# py-cpuinfo are ultralytics runtime deps listed here so the rest resolves.
+ultralytics==8.4.60
+polars>=1.0
+scipy>=1.11
+seaborn>=0.13
+py-cpuinfo>=9.0
+
+# --- app / demo ---
+streamlit>=1.50
+
+# --- testing ---
+pytest>=8.0

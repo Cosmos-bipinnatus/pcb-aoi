@@ -9,6 +9,8 @@ data/*
 models/*.pt
 models/*.pth
 models/*.onnx
+# demo 必需的 CNN 權重(44.8 MB < 100 MB)保留進 git
+!models/defect_classifier.pt
 # 根目錄的 YOLO 預訓練權重(yolov8n.pt 等)
 /*.pt
 
@@ -21,8 +23,13 @@ __pycache__/
 
 # ---- Results ----
 results/intermediate/
-# ultralytics 訓練輸出(權重 + 圖);需要的圖另複製到 results/figures/
-results/yolo_training/
+# ultralytics 訓練輸出:整體排除,但逐層保留 demo 必需的 best.pt(6.3 MB)
+results/yolo_training/*
+!results/yolo_training/run1
+results/yolo_training/run1/*
+!results/yolo_training/run1/weights
+results/yolo_training/run1/weights/*
+!results/yolo_training/run1/weights/best.pt
 # ultralytics val/predict 預設輸出目錄
 runs/
 

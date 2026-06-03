@@ -1,0 +1,96 @@
+{
+  "samples": [
+    {
+      "name": "missing_hole demo 1",
+      "class": "missing_hole",
+      "image": "test_images/1_missing_hole_demo1.jpg",
+      "template": "templates/1_missing_hole_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "missing_hole demo 2",
+      "class": "missing_hole",
+      "image": "test_images/1_missing_hole_demo2.jpg",
+      "template": "templates/1_missing_hole_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "mouse_bite demo 1",
+      "class": "mouse_bite",
+      "image": "test_images/2_mouse_bite_demo1.jpg",
+      "template": "templates/2_mouse_bite_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "mouse_bite demo 2",
+      "class": "mouse_bite",
+      "image": "test_images/2_mouse_bite_demo2.jpg",
+      "template": "templates/2_mouse_bite_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "open_circuit demo 1",
+      "class": "open_circuit",
+      "image": "test_images/3_open_circuit_demo1.jpg",
+      "template": "templates/3_open_circuit_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "open_circuit demo 2",
+      "class": "open_circuit",
+      "image": "test_images/3_open_circuit_demo2.jpg",
+      "template": "templates/3_open_circuit_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "short demo 1",
+      "class": "short",
+      "image": "test_images/4_short_demo1.jpg",
+      "template": "templates/4_short_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "short demo 2",
+      "class": "short",
+      "image": "test_images/4_short_demo2.jpg",
+      "template": "templates/4_short_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "spur demo 1",
+      "class": "spur",
+      "image": "test_images/5_spur_demo1.jpg",
+      "template": "templates/5_spur_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "spur demo 2",
+      "class": "spur",
+      "image": "test_images/5_spur_demo2.jpg",
+      "template": "templates/5_spur_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "spurious_copper demo 1",
+      "class": "spurious_copper",
+      "image": "test_images/6_spurious_copper_demo1.jpg",
+      "template": "templates/6_spurious_copper_template.jpg",
+      "board": "01"
+    },
+    {
+      "name": "spurious_copper demo 2",
+      "class": "spurious_copper",
+      "image": "test_images/6_spurious_copper_demo2.jpg",
+      "template": "templates/6_spurious_copper_template.jpg",
+      "board": "01"
+    }
+  ],
+  "recipes": {
+    "missing_hole": "templates/1_missing_hole_template.jpg",
+    "mouse_bite": "templates/2_mouse_bite_template.jpg",
+    "open_circuit": "templates/3_open_circuit_template.jpg",
+    "short": "templates/4_short_template.jpg",
+    "spur": "templates/5_spur_template.jpg",
+    "spurious_copper": "templates/6_spurious_copper_template.jpg"
+  }
+}

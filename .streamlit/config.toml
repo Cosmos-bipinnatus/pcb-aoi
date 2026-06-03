@@ -1,0 +1,8 @@
+# 關閉 file watcher,避免 Streamlit 掃描 torch.classes 觸發
+# "RuntimeError: Tried to instantiate class '__path__._path'" 的已知衝突。
+[server]
+fileWatcherType = "none"
+headless = true
+
+[theme]
+base = "light"

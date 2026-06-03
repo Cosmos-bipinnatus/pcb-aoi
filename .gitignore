@@ -9,6 +9,8 @@ data/*
 models/*.pt
 models/*.pth
 models/*.onnx
+# 根目錄的 YOLO 預訓練權重(yolov8n.pt 等)
+/*.pt
 
 # ---- Python ----
 __pycache__/
@@ -19,6 +21,10 @@ __pycache__/
 
 # ---- Results ----
 results/intermediate/
+# ultralytics 訓練輸出(權重 + 圖);需要的圖另複製到 results/figures/
+results/yolo_training/
+# ultralytics val/predict 預設輸出目錄
+runs/
 
 # ---- Env / IDE ----
 .venv/

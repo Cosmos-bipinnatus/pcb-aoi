@@ -1,0 +1,23 @@
+{
+  "mAP@0.5": 0.9177991661914916,
+  "mAP@0.5:0.95": 0.46721032269273366,
+  "per_class_ap50": {
+    "missing_hole": 0.9834123515312202,
+    "mouse_bite": 0.888623145053923,
+    "open_circuit": 0.8606352394858181,
+    "short": 0.9748322793240405,
+    "spur": 0.9262393455896075,
+    "spurious_copper": 0.8730526361643406
+  },
+  "per_class_ap5095": {
+    "missing_hole": 0.5710260027153992,
+    "mouse_bite": 0.43443729141497467,
+    "open_circuit": 0.404123023073541,
+    "short": 0.4923492693626573,
+    "spur": 0.44223866363414127,
+    "spurious_copper": 0.45908768595568883
+  },
+  "ms_per_image": 132.7723775000777,
+  "imgsz": 640,
+  "weights": "D:\\ash-portfolio\\pcb-aoi\\results\\yolo_training\\run1\\weights\\best.pt"
+}

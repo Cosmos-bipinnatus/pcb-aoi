@@ -54,6 +54,8 @@ def save_model(model: nn.Module, path: str | Path = DEFAULT_WEIGHTS, extra: dict
 
 
 def load_model(path: str | Path = DEFAULT_WEIGHTS, device: str = "cpu") -> DefectClassifier:
+    if isinstance(device, int):              # torch.load 不接受 int 作 map_location
+        device = f"cuda:{device}"
     payload = torch.load(path, map_location=device, weights_only=False)
     model = DefectClassifier(num_classes=len(payload.get("classes", CLASSES)), pretrained=False)
     model.load_state_dict(payload["state_dict"])

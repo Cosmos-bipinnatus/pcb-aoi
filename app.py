@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent
 SAMPLES = ROOT / "samples"
 MANIFEST = json.loads((SAMPLES / "manifest.json").read_text(encoding="utf-8"))
 
-st.set_page_config(page_title="PCB-AOI Demo", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="PCB-AOI Demo", layout="wide")
 
 
 def _read_bgr(path):
@@ -34,7 +34,7 @@ def _read_bgr(path):
 # Sidebar
 # --------------------------------------------------------------------------- #
 with st.sidebar:
-    st.title("🔍 PCB-AOI Demo")
+    st.title("PCB-AOI Demo")
     st.caption("HRIPCB 缺陷檢測 · 三方法比較")
 
     method = st.radio(
@@ -52,7 +52,7 @@ with st.sidebar:
         recipe_cls = st.selectbox(
             "對應該類的 golden template",
             CLASSES, format_func=lambda c: f"{c} ({CLASS_ZH[c]})")
-        st.caption(f"→ 使用 template: `{Path(MANIFEST['recipes'][recipe_cls]).name}`")
+        st.caption(f"使用 template: `{Path(MANIFEST['recipes'][recipe_cls]).name}`")
 
     st.markdown("---")
     st.markdown("**進階設定**")
@@ -66,7 +66,7 @@ with st.sidebar:
 
     # 停止伺服器(沿用 xray-ct-recon app.py 的 shutdown 機制)
     st.divider()
-    if st.button("⏹ 停止伺服器", type="secondary"):
+    if st.button("停止伺服器", type="secondary"):
         st.warning("伺服器即將關閉,可關閉此瀏覽器分頁。")
         import os, signal, time
         time.sleep(0.5)             # 讓提示訊息先 render(沿用 xray-ct-recon 寫法)
@@ -98,7 +98,7 @@ with c_src:
 with c_btn:
     st.write("")
     st.write("")
-    run = st.button("🚀 執行檢測", use_container_width=True, type="primary")
+    run = st.button("執行檢測", use_container_width=True, type="primary")
 
 # Stage 1 的 template 解析:範例優先用自帶 template,否則用 sidebar Recipe
 if stage == 1:
@@ -142,7 +142,7 @@ if "result" in st.session_state:
     st.markdown("---")
     st.subheader(f"檢測結果 — {result['method']}")
     if result.get("note"):
-        st.caption("ℹ️ " + result["note"])
+        st.caption(result["note"])
 
     col1, col2 = st.columns(2)
     with col1:
@@ -169,11 +169,11 @@ if "result" in st.session_state:
     # 下載
     d1, d2 = st.columns(2)
     ok, png = cv2.imencode(".png", cv2.cvtColor(state["annotated"], cv2.COLOR_RGB2BGR))
-    d1.download_button("⬇️ 下載標註圖", png.tobytes(),
+    d1.download_button("下載標註圖", png.tobytes(),
                        file_name=f"annotated_{state['name']}.png", mime="image/png")
     meta = {"input": state["name"], "method": result["method"],
             "inference_ms": result["inference_ms"], "detections": dets}
-    d2.download_button("⬇️ 下載 JSON metadata",
+    d2.download_button("下載 JSON metadata",
                        json.dumps(meta, ensure_ascii=False, indent=2),
                        file_name=f"result_{state['name']}.json", mime="application/json")
 else:

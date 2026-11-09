@@ -67,6 +67,87 @@ The full comparison table is in
 are in [`results/`](results/) and the walkthrough notebooks in
 [`notebooks/`](notebooks/).
 
+## 作業二專項實驗：Stage 2 ResNet18 訓練週期（Epochs = 5, 10, 15）敏感度與可重現性驗證
+
+針對 **Stage 2（兩階段缺陷分類系統）** 進行深度超參數敏感度實驗，主題為：**「探討訓練輪數（Training Epochs）對 CNN 分類性能、收斂穩定性與測試集不良品召回率的影響」**。實驗鎖定訓練輪數為唯一自變數，評估其在工業外觀檢測（AOI）場景下的收斂極限與系統邊界效應。
+
+### 1. 環境建置與執行說明（Execution Guide）
+
+本專案全面支援現代化極速 Python 套件管理工具 **`uv`**（亦相容標準 `pip`）。以下為虛擬環境建置與 CLI 指令執行範例：
+
+```bash
+# 1. 使用 uv 建立 Python 3.11+ 虛擬環境並安裝依賴
+uv venv
+# Windows 啟用虛擬環境: .\.venv\Scripts\activate
+# Linux/macOS 啟用: source .venv/bin/activate
+
+# 2. 安裝核心依賴與 PyTorch (可依據本機 CUDA 版本對應安裝)
+uv pip install -r requirements.txt
+
+# 3. 執行擴充後的 CLI 實驗指令（以 Epochs = 5 為例）：
+# (a) 訓練分類器：跑滿 5 輪（--no-early-stop），分別儲存 Best 與 Last 權重及日誌
+python -m src.train_classifier --epochs 5 --no-early-stop \
+    --weights models/defect_classifier_ep5_best.pt \
+    --weights-last models/defect_classifier_ep5_last.pt \
+    --log results/training_log_ep5.csv
+
+# (b) 雙權重評估：同時評估 Last 與 Best 權重之 GT Crops 指標及端到端 mAP
+python -m src.evaluate_classifier \
+    --weights models/defect_classifier_ep5_best.pt \
+    --weights-last models/defect_classifier_ep5_last.pt \
+    --out results/classifier_eval_ep5.json
+
+# (c) 視覺化圖表產出：生成訓練曲線、混淆矩陣、預測範例與誤判分析
+python -m src.viz_classifier \
+    --log results/training_log_ep5.csv \
+    --weights models/defect_classifier_ep5_last.pt \
+    --suffix _ep5
+
+# 依此類推，Epochs = 10 與 15 只需替換 --epochs 10 / 15 與對應檔名後綴：
+# python -m src.train_classifier --epochs 10 --no-early-stop --weights models/defect_classifier_ep10_best.pt --weights-last models/defect_classifier_ep10_last.pt --log results/training_log_ep10.csv
+# python -m src.train_classifier --epochs 15 --no-early-stop --weights models/defect_classifier_ep15_best.pt --weights-last models/defect_classifier_ep15_last.pt --log results/training_log_ep15.csv
+```
+
+### 2. 實驗控制與可重現性設計（Reproducibility & Data Integrity）
+
+為落實嚴謹的科學實驗對照原則，全實驗流程實施五大控制機制：
+
+1. **嚴格單一自變數（Controlled Independent Variable）**：
+   - 唯一自變數為 **`Training Epochs`（5, 10, 15 輪）**。
+   - 其餘超參數全數凍結：學習率（`lr = 1e-4`）、優化器（`Adam`）、批次大小（`batch_size = 64`）、排程器（`ReduceLROnPlateau(factor=0.5, patience=4)`）、上下文外擴（`pad_ratio = 0.3`）以及輸入維度（`224×224`）。
+2. **全局隨機種子完全固化（Deterministic Random Seeds）**：
+   - 透過 `src.train_classifier.set_seed(42)` 固化 `random`、`numpy`、`torch.manual_seed`，並設定 `torch.backends.cudnn.deterministic = True` 與 `cudnn.benchmark = False`。
+   - DataLoader 載入器綁定專屬隨機生成器（`torch.Generator().manual_seed(42)`），確保 Shuffle 資料抽樣順序完全決定性。
+3. **影像級分層防洩漏切分（Image-level Stratified Splitting）**：
+   - 完全沿用 `src.dataset.build_splits(seed=42)`，切分為 **70% 訓練集 (483 張 / 2,051 crops)**、**15% 驗證集 (102 張 / 442 crops)**、**15% 測試集 (108 張 / 460 crops)**。
+   - 嚴格堅持以「影像為單位」進行缺陷分層切分，嚴防同張 PCB 上的多個瑕疵被割裂至不同 split 導致嚴重資料洩漏。
+4. **零權重殘留與前 5 輪 Loss 完全重合驗證（Zero Weight Carry-Over）**：
+   - 每組實驗皆從 ImageNet-1K 預訓練權重重新初始化，並在相同隨機種子下初始化最終分類層（`fc`），嚴禁接續前一組訓練權重。
+   - **實證重現檢驗**：在完全相同的種子與資料流下，實驗組 A (5 輪)、組 B (10 輪)、組 C (15 輪) 與 Baseline 的**前 5 輪 Train Loss 與 Val Loss 數值完全精確重合（Epoch 1: 0.1661 / 0.1257，Epoch 2: 0.0526 / 0.0523...）**，驗證各實驗組具備 100% 可重現性與乾淨獨立性。
+5. **測試集嚴禁洩漏調參（Strict Test Split Sequestration）**：
+   - 驗證集僅供早停判定與學習率排程監控；測試集 460 筆 GT crops 僅在訓練徹底終止後作為量化評估的最終基準。
+
+### 3. 實驗結果總表（Benchmark Summary）
+
+在測試集（Test Split）460 個真實標籤瑕疵塊（GT Crops）下，各組最後一輪（`Last Epoch`）與最佳驗證輪（`Best Val Epoch`）之完整量化指標與 6 類不良品獨立召回率對照如下：
+
+| 實驗組別設定 (`Training Epochs`) | Train Loss | Val Loss | Val Acc (%) | Macro Recall (%) | Micro Recall / Test Acc (%) | missing_hole Recall (%) | mouse_bite Recall (%) | open_circuit Recall (%) | short Recall (%) | spur Recall (%) | spurious_copper Recall (%) | End-to-End mAP@0.5 (%) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **實驗組 A** (`Epochs = 5`) | 0.0211<br>*(Best@Ep4: 0.0216)* | 0.0403<br>*(Best@Ep4: 0.0346)* | 99.32%<br>*(Best: 99.77%)* | 99.14%<br>*(Best: 99.78%)* | 99.13%<br>*(Best: 99.78%)* | 98.65%<br>*(Best: 100%)* | 100.00% | 100.00% | 100.00% | 97.40%<br>*(Best: 98.70%)* | 98.78%<br>*(Best: 100%)* | 84.93%<br>*(Best: 85.12%)* |
+| **實驗組 B** (`Epochs = 10`) | 0.0330<br>*(Best@Ep8: 0.0068)* | 0.0330<br>*(Best@Ep8: 0.0279)* | 98.87%<br>*(Best: 99.55%)* | 99.37%<br>*(Best: 99.57%)* | 99.35%<br>*(Best: 99.57%)* | 98.65% | 100.00% | 100.00% | 100.00% | 100.00% | 97.56%<br>*(Best: 98.78%)* | 85.40%<br>*(Best: 85.79%)* |
+| **實驗組 C** (`Epochs = 15`) | 0.0077<br>*(Best@Ep11: 0.0096)* | 0.0326<br>*(Best@Ep11: 0.0203)* | 99.32%<br>*(Best: 99.55%)* | 99.33%<br>*(Best: 99.56%)* | 99.35%<br>*(Best: 99.57%)* | 98.65% | 100.00%<br>*(Best: 98.70%)* | 98.61%<br>*(Best: 100%)* | 100.00% | 98.70%<br>*(Best: 100%)* | 100.00% | 84.47%<br>*(Best: 85.50%)* |
+| **基準對照組** (`Baseline`, max=50, 實際 31 輪 EarlyStop) | 0.0052<br>*(Best@Ep21: 0.0047)* | 0.0169<br>*(Best@Ep21: 0.0111)* | 99.77% | **100.00%** | **100.00%** | 100.00% | 100.00% | 100.00% | 100.00% | 100.00% | 100.00% | 84.75% |
+
+#### 骨幹網路凍結消融實驗結論（Ablation: `freeze_backbone=True`）
+在固定 `Epochs = 10`、相同隨機種子下，進一步測試傳統特徵抽取策略（凍結 ResNet18 骨幹，僅訓練最後分類層）：
+- **分類性能全面崩跌**：可訓練參數量由 1,118 萬驟降至 3,078 個（-99.97%），但測試集準確率從 **99.35% 暴跌至 50.65%**（誤判由 3 筆激增至 227 筆），宏平均召回率由 **99.37% 腰斬至 50.44%**。
+- **微小拓撲瑕疵毀滅性漏檢**：雖然宏觀對稱缺陷 `missing_hole`（缺孔）仍維持 95.95% 召回率，但涉及線路拓撲連通性與細微邊緣結構的瑕疵遭受毀滅性衝擊——`short`（短路）召回率驟降至 **34.62%**、`open_circuit`（開路）驟降至 **22.22%**、`spur`（突刺）更直接暴跌至 **16.88%**（83% 嚴重漏檢）。
+- **工業實務啟示**：在工業 PCB 瑕疵檢測中，自然影像（ImageNet）提取的宏觀幾何特徵無法直接對應電氣線路拓撲連通關係，**全網路微調（Full Fine-tuning）為不可或缺的絕對關鍵步驟**。
+
+#### 系統架構瓶頸結論（End-to-End Proposal Bottleneck）
+- 不論 CNN 分類器訓練 5 輪、10 輪、15 輪或 31 輪（其 GT Crop 準確率皆在 99.1% ~ 100% 之間），**全系統端到端 mAP@0.5 皆停滯在 84.5% ~ 85.8% 區間**。
+- 原因在於兩階段架構受限於前端 Stage 1 傳統差影法對短路（`short`）候選框的低召回率（僅 ~43% AP），分類器即便具備 100% 辨識能力亦無從挽救漏框，此現象直接印證專案演進至 **Stage 3 端到端 YOLO** 的必要性。
+
 ## Streamlit Demo
 
 An interactive demo lets you run all three methods on the same board and observe

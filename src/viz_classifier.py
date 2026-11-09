@@ -138,3 +138,78 @@ def misclassified_examples(model, device, out_dir, name="02_misclassified_exampl
     fig.suptitle("Stage 2 錯誤案例 (test GT crops)", fontweight="bold")
     fig.tight_layout()
     return _save(fig, out_dir, name)
+
+
+if __name__ == "__main__":
+    import argparse
+    from .dl_classifier import load_model, DEFAULT_WEIGHTS
+    from .evaluate_classifier import evaluate_gt_crops
+
+    ROOT = Path(__file__).resolve().parents[1]
+    DEFAULT_LOG = ROOT / "results" / "training_log.csv"
+    DEFAULT_OUT_DIR = ROOT / "results" / "figures"
+
+    parser = argparse.ArgumentParser(description="Stage 2 視覺化圖表產出工具")
+    parser.add_argument("--log", type=str, default=str(DEFAULT_LOG), help="訓練日誌 CSV 路徑")
+    parser.add_argument("--weights", type=str, default=str(DEFAULT_WEIGHTS), help="模型權重路徑")
+    parser.add_argument("--out-dir", type=str, default=str(DEFAULT_OUT_DIR), help="圖片輸出目錄")
+    parser.add_argument("--prefix", type=str, default="02_", help="檔名前綴 (預設 02_)")
+    parser.add_argument("--suffix", type=str, default="", help="檔名後綴 (例如 _ep5)")
+    args = parser.parse_args()
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    prefix = args.prefix
+    suffix = args.suffix
+    if suffix and not suffix.startswith("_"):
+        suffix = f"_{suffix}"
+
+    log_path = Path(args.log)
+    weights_path = Path(args.weights)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # 1. 訓練曲線
+    if log_path.exists():
+        curve_name = f"{prefix}training_curves{suffix}.png"
+        p = training_curves(log_path, out_dir, name=curve_name)
+        print(f"產出訓練曲線: {p}")
+    else:
+        print(f"略過訓練曲線 (找不到 {log_path})")
+
+    # 2. 混淆矩陣與預測樣本
+    if weights_path.exists():
+        model = load_model(weights_path, device)
+        print(f"載入權重: {weights_path} (device={device})")
+
+        # 評估 GT crops 取得混淆矩陣
+        gt_res = evaluate_gt_crops(model, device, split="test")
+        cm = gt_res["confusion_matrix"]
+        cm_name = f"{prefix}confusion_gt{suffix}.png"
+        p_cm = confusion_fig(
+            cm,
+            CLASSES,
+            f"Stage 2 GT Crops 混淆矩陣 (Acc: {gt_res['accuracy']*100:.1f}%)",
+            out_dir,
+            name=cm_name,
+        )
+        print(f"產出混淆矩陣: {p_cm}")
+        if not suffix:
+            confusion_fig(
+                cm,
+                CLASSES,
+                f"Stage 2 GT Crops 混淆矩陣 (Acc: {gt_res['accuracy']*100:.1f}%)",
+                out_dir,
+                name=f"{prefix}confusion_matrix.png",
+            )
+
+        # 樣本預測
+        pred_name = f"{prefix}sample_predictions{suffix}.png"
+        p_pred = sample_predictions(model, device, out_dir, name=pred_name)
+        print(f"產出樣本預測: {p_pred}")
+
+        # 錯誤案例
+        misc_name = f"{prefix}misclassified_examples{suffix}.png"
+        p_misc = misclassified_examples(model, device, out_dir, name=misc_name)
+        print(f"產出錯誤案例: {p_misc}")
+    else:
+        print(f"略過模型預測圖 (找不到權重 {weights_path})")

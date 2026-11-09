@@ -170,9 +170,31 @@ def evaluate_gt_crops(model, device, split="test") -> dict:
         P = tp / (tp + fp) if tp + fp else 0.0
         R = tp / (tp + fn) if tp + fn else 0.0
         F1 = 2 * P * R / (P + R) if P + R else 0.0
-        per_class[c] = {"precision": P, "recall": R, "f1": F1, "support": int(cm[i].sum())}
-    return {"accuracy": acc, "per_class": per_class,
-            "confusion_matrix": cm.tolist(), "n": len(y_true)}
+        per_class[c] = {"precision": float(P), "recall": float(R), "f1": float(F1),
+                        "support": int(cm[i].sum()), "tp": int(tp), "fp": int(fp), "fn": int(fn)}
+
+    recalls = [per_class[c]["recall"] for c in CLASSES]
+    precisions = [per_class[c]["precision"] for c in CLASSES]
+    f1s = [per_class[c]["f1"] for c in CLASSES]
+    macro_recall = float(np.mean(recalls)) if recalls else 0.0
+    macro_precision = float(np.mean(precisions)) if precisions else 0.0
+    macro_f1 = float(np.mean(f1s)) if f1s else 0.0
+
+    total_tp = sum(cm[i, i] for i in range(n))
+    total_fn = sum(cm[i, :].sum() - cm[i, i] for i in range(n))
+    denom = total_tp + total_fn
+    micro_recall = float(total_tp / denom) if denom > 0 else 0.0
+
+    return {
+        "accuracy": acc,
+        "macro_recall": macro_recall,
+        "micro_recall": micro_recall,
+        "macro_precision": macro_precision,
+        "macro_f1": macro_f1,
+        "per_class": per_class,
+        "confusion_matrix": cm.tolist(),
+        "n": len(y_true),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -182,28 +204,68 @@ def evaluate_end_to_end(model, device, config=None, split="test", pad_ratio=0.3)
     clf = _CropClassifier(model, device, pad_ratio)
     items = build_splits(DATA)[split]
 
+    cache_path = ROOT / "results" / "intermediate" / "stage1_test_proposals.json"
+    use_cache = (config is None and split == "test")
+    proposals_cache = None
+    if use_cache and cache_path.exists():
+        try:
+            proposals_cache = json.loads(cache_path.read_text(encoding="utf-8"))
+            print(f"載入 Stage 1 proposals 快取: {cache_path}")
+        except Exception as e:
+            print(f"快取載入失敗，將重新執行 Stage 1 pipeline: {e}")
+            proposals_cache = None
+
+    new_cache = {} if (use_cache and proposals_cache is None) else None
+
     stage1_records, cnn_records = [], []
     sample_dets = []   # 供視覺化:保留少數影像的 proposals(兩種分類)
     for k, it in enumerate(items):
         img_path = it["image"]
-        tmpl = get_template_for_test(Path(img_path).name, DATA / "PCB_USED")
-        out = run_traditional_pipeline(img_path, tmpl, config)
-        dets = out["detections"]
+        img_name = Path(img_path).name
         gts = [(o.name, (o.xmin, o.ymin, o.xmax, o.ymax)) for o in parse_voc(it["xml"]).objects]
+
+        if proposals_cache is not None and (img_name in proposals_cache or img_path in proposals_cache):
+            raw_dets = proposals_cache.get(img_name, proposals_cache.get(img_path))
+            dets = [
+                {
+                    "bbox": tuple(d["bbox"]),
+                    "class": d["class"],
+                    "confidence": float(d["confidence"]),
+                }
+                for d in raw_dets
+            ]
+        else:
+            tmpl = get_template_for_test(img_name, DATA / "PCB_USED")
+            out = run_traditional_pipeline(img_path, tmpl, config)
+            dets = out["detections"]
+            if new_cache is not None:
+                new_cache[img_name] = [
+                    {
+                        "bbox": list(d["bbox"]),
+                        "class": d["class"],
+                        "confidence": float(d["confidence"]),
+                    }
+                    for d in dets
+                ]
 
         img = cv2.imread(img_path)
         patches = [cv2.cvtColor(crop_with_padding(img, d["bbox"], pad_ratio), cv2.COLOR_BGR2RGB)
                    for d in dets]
         cnn_idx, cnn_conf = clf.predict_patches(patches)
 
-        s1 = [(d["class"], d["bbox"], d["confidence"]) for d in dets]
-        cnn = [(CLASSES[cnn_idx[i]], dets[i]["bbox"], float(cnn_conf[i]))
+        s1 = [(d["class"], tuple(d["bbox"]), float(d["confidence"])) for d in dets]
+        cnn = [(CLASSES[cnn_idx[i]], tuple(dets[i]["bbox"]), float(cnn_conf[i]))
                for i in range(len(dets))]
         stage1_records.append({"gts": gts, "dets": s1})
         cnn_records.append({"gts": gts, "dets": cnn})
 
         if k < 6:
             sample_dets.append({"image": img_path, "gts": gts, "stage1": s1, "cnn": cnn})
+
+    if new_cache is not None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(new_cache, indent=2), encoding="utf-8")
+        print(f"Stage 1 test proposals 已快取至: {cache_path}")
 
     return {
         "stage1": compute_detection_metrics(stage1_records),
@@ -218,6 +280,9 @@ def evaluate_end_to_end(model, device, config=None, split="test", pad_ratio=0.3)
 # --------------------------------------------------------------------------- #
 def _print_gt(res):
     print(f"\n[GT crops] accuracy = {res['accuracy']*100:.1f}%  (n={res['n']})")
+    print(f"  macro_recall = {res.get('macro_recall', 0.0)*100:.2f}%  "
+          f"micro_recall = {res.get('micro_recall', 0.0)*100:.2f}%  "
+          f"macro_f1 = {res.get('macro_f1', 0.0)*100:.2f}%")
     print(f"{'class':<16}{'P':>7}{'R':>7}{'F1':>7}{'support':>9}")
     for c in CLASSES:
         m = res["per_class"][c]
@@ -237,20 +302,75 @@ def _print_e2e(res):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Stage 2 缺陷分類器評估")
+    parser.add_argument("--weights", type=str, default=str(DEFAULT_WEIGHTS), help="模型權重 (或最佳權重) 路徑")
+    parser.add_argument("--weights-last", type=str, default=None, help="最後一輪權重路徑 (可選，同時評估 best 與 last)")
+    parser.add_argument("--out", type=str, default=str(ROOT / "results" / "classifier_eval_summary.json"), help="輸出 JSON 路徑")
+    args = parser.parse_args()
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = load_model(DEFAULT_WEIGHTS, device)
-    print(f"載入模型 {DEFAULT_WEIGHTS}  device={device}")
+    weights_path = Path(args.weights)
+    out_path = Path(args.out)
 
-    gt = evaluate_gt_crops(model, device, "test")
-    _print_gt(gt)
-    e2e = evaluate_end_to_end(model, device, split="test")
-    _print_e2e(e2e)
+    if args.weights_last is not None:
+        weights_last_path = Path(args.weights_last)
+        print(f"=== 雙權重評估模式 ===")
+        print(f"1. 評估 Last 模型: {weights_last_path}  (device={device})")
+        model_last = load_model(weights_last_path, device)
+        gt_last = evaluate_gt_crops(model_last, device, "test")
+        _print_gt(gt_last)
+        e2e_last = evaluate_end_to_end(model_last, device, split="test")
+        _print_e2e(e2e_last)
 
-    out = {"gt_crops": gt, "end_to_end": {k: v for k, v in e2e.items() if k != "sample_dets"}}
-    res_dir = ROOT / "results"
-    (res_dir / "intermediate").mkdir(parents=True, exist_ok=True)
-    # 完整(含 sample_dets)存 intermediate(gitignore),精簡 summary 存 results(追蹤)
-    (res_dir / "intermediate" / "classifier_eval.json").write_text(
-        json.dumps({**out, "sample_dets": e2e["sample_dets"]}, indent=2))
-    (res_dir / "classifier_eval_summary.json").write_text(json.dumps(out, indent=2))
-    print(f"\n寫入 {res_dir/'classifier_eval_summary.json'}")
+        print(f"\n2. 評估 Best 模型: {weights_path}  (device={device})")
+        model_best = load_model(weights_path, device)
+        gt_best = evaluate_gt_crops(model_best, device, "test")
+        _print_gt(gt_best)
+        e2e_best = evaluate_end_to_end(model_best, device, split="test")
+        _print_e2e(e2e_best)
+
+        last_model_data = {
+            "weights": str(weights_last_path),
+            "gt_crops": gt_last,
+            "end_to_end": {k: v for k, v in e2e_last.items() if k != "sample_dets"},
+        }
+        best_model_data = {
+            "weights": str(weights_path),
+            "gt_crops": gt_best,
+            "end_to_end": {k: v for k, v in e2e_best.items() if k != "sample_dets"},
+        }
+        out = {
+            "gt_crops": gt_last,
+            "end_to_end": {k: v for k, v in e2e_last.items() if k != "sample_dets"},
+            "last_model": last_model_data,
+            "best_model": best_model_data,
+        }
+        sample_dets_data = e2e_last["sample_dets"]
+    else:
+        print(f"載入模型 {weights_path}  device={device}")
+        model = load_model(weights_path, device)
+        gt = evaluate_gt_crops(model, device, "test")
+        _print_gt(gt)
+        e2e = evaluate_end_to_end(model, device, split="test")
+        _print_e2e(e2e)
+        out = {
+            "gt_crops": gt,
+            "end_to_end": {k: v for k, v in e2e.items() if k != "sample_dets"},
+        }
+        sample_dets_data = e2e["sample_dets"]
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"\n寫入 {out_path}")
+
+    # 若輸出目標為預設的 classifier_eval_summary.json，同時存 intermediate/classifier_eval.json (含 sample_dets)
+    if out_path.name == "classifier_eval_summary.json":
+        res_dir = ROOT / "results"
+        (res_dir / "intermediate").mkdir(parents=True, exist_ok=True)
+        inter_path = res_dir / "intermediate" / "classifier_eval.json"
+        inter_path.write_text(
+            json.dumps({**out, "sample_dets": sample_dets_data}, indent=2),
+            encoding="utf-8"
+        )
+        print(f"寫入 {inter_path}")
